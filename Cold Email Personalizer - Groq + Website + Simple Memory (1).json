@@ -1,0 +1,337 @@
+{
+  "name": "Cold Email Personalizer - Groq + Website + Simple Memory",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Cold Email Personalizer",
+        "formDescription": "Generate a personalized professional email using prospect details and publicly available website information.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Recipient name or role",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Company name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Prospect website URL (https://...)",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email purpose",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Job Application"
+                  },
+                  {
+                    "option": "Internship Request"
+                  },
+                  {
+                    "option": "Business Proposal"
+                  },
+                  {
+                    "option": "Project Collaboration"
+                  },
+                  {
+                    "option": "Meeting Request"
+                  },
+                  {
+                    "option": "Follow-up"
+                  },
+                  {
+                    "option": "Networking"
+                  },
+                  {
+                    "option": "Custom"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Position or topic",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Your name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Your background / skills",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Key points to include",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Tone",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Professional"
+                  },
+                  {
+                    "option": "Formal"
+                  },
+                  {
+                    "option": "Friendly"
+                  },
+                  {
+                    "option": "Concise"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Previous draft / memory (optional)"
+            }
+          ]
+        },
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "3b839d29-0fb8-49be-bc81-275006216962",
+      "name": "Input Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "2da8532d-e1c5-40d7-863c-e3ba0ea842ff"
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\n\nconst url = String(\n  d.website ||\n  d[\"Prospect website URL (https://...)\"] ||\n  d[\"Prospect website URL\"] ||\n  d[\"Website\"] ||\n  \"\"\n).trim();\n\nif (!url) {\n  throw new Error(\n    \"Website URL is missing. Check the Input Form field name.\"\n  );\n}\n\nif (!/^https?:\\/\\//i.test(url)) {\n  throw new Error(\n    \"Enter a complete URL, for example https://www.tcs.com/\"\n  );\n}\n\nreturn [{\n  json: {\n    recipient: String(\n      d.recipient || d[\"Recipient name or role\"] || \"\"\n    ).trim(),\n\n    company: String(\n      d.company || d[\"Company name\"] || \"\"\n    ).trim(),\n\n    website: url,\n\n    purpose: d.purpose || d[\"Email purpose\"] || \"Custom\",\n\n    position: String(\n      d.position || d[\"Position or topic\"] || \"\"\n    ).trim(),\n\n    senderName: String(\n      d.senderName || d[\"Your name\"] || \"\"\n    ).trim(),\n\n    background: String(\n      d.background || d[\"Your background / skills\"] || \"\"\n    ).trim(),\n\n    keyPoints: String(\n      d.keyPoints || d[\"Key points to include\"] || \"\"\n    ).trim(),\n\n    tone: d.tone || d[\"Tone\"] || \"Professional\",\n\n    memory: String(\n      d.memory || d[\"Previous draft / memory (optional)\"] || \"\"\n    ).trim()\n  }\n}];"
+      },
+      "id": "99c33ef9-fbbb-439a-bb59-8712b263bbef",
+      "name": "Validate and Prepare Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.website }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (compatible; ColdEmailPersonalizer/1.0)"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {
+              "maxRedirects": 3
+            }
+          },
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "156f9a33-b602-431c-ab4c-f7e786fc30da",
+      "name": "Fetch Prospect Website",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst d = $input.first().json;\n\n// Read the website from the form or earlier node\nconst form = $(\"Input Form\").first().json;\n\nconst url = String(\n  d.website ||\n  d.url ||\n  d[\"Prospect website URL (https://...)\"] ||\n  d[\"Prospect website URL\"] ||\n  form.website ||\n  form.url ||\n  form[\"Prospect website URL (https://...)\"] ||\n  form[\"Prospect website URL\"] ||\n  \"\"\n).trim();\n\nif (!url) {\n  throw new Error(\n    \"Website URL not found. Check Input Form output JSON.\"\n  );\n}\n\nif (!/^https?:\\/\\//i.test(url)) {\n  throw new Error(\n    \"Website must start with https:// or http://\"\n  );\n}\n\n// Keep the website URL for the next node\nreturn [{\n  json: {\n    ...d,\n    website: url\n  }\n}];\n"
+      },
+      "id": "cad53bd2-86ea-427c-bc83-931cd061be2f",
+      "name": "Clean Website and Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.YOUR_GROQ_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'llama-3.3-70b-versatile', messages: $json.groqMessages, temperature: 0.4, max_tokens: 900, response_format: { type: 'json_object' } } }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "2fd660a0-53f3-4263-8e28-30b80b5ffcbe",
+      "name": "Generate Email with Groq",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nlet subject = 'Personalized email';\nlet body = 'Email generation did not return a usable response. Check the Groq API key, model availability, and n8n execution details, then try again.';\ntry {\n const content = response.choices?.[0]?.message?.content;\n if (content) {\n  const parsed = JSON.parse(content);\n  subject = String(parsed.subject || subject);\n  body = String(parsed.body || body);\n }\n} catch (e) {\n const content = response.choices?.[0]?.message?.content;\n if (content) body = String(content);\n}\nconst original = $('Validate and Prepare Inputs').first().json;\n// Simple memory: include a compact recap in the output so it can be pasted into the next run's optional memory field.\nconst memoryNote = `Previous email context: recipient=${original.recipient}; company=${original.company}; purpose=${original.purpose}; topic=${original.position}; tone=${original.tone}. Last subject: ${subject}. Keep continuity only if relevant; do not assume facts beyond this note.`;\nreturn [{json: {subject, body, company: original.company, recipient: original.recipient, website: original.website, memoryNote}}];"
+      },
+      "id": "ea53781b-a4d8-407a-850a-6f0531fa9750",
+      "name": "Format Email and Memory Note",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Subject",
+              "fieldType": "textarea",
+              "defaultValue": "={{ $json.subject }}"
+            },
+            {
+              "fieldLabel": "Email body",
+              "fieldType": "textarea",
+              "defaultValue": "={{ $json.body }}"
+            },
+            {
+              "fieldLabel": "Memory note for next run",
+              "fieldType": "textarea",
+              "defaultValue": "={{ $json.memoryNote }}"
+            }
+          ]
+        },
+        "options": {
+          "buttonLabel": "Finish"
+        }
+      },
+      "id": "c5b32737-a2d4-48c5-b316-2b0294abbcb1",
+      "name": "Output Form",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        0
+      ],
+      "webhookId": "0b54c3e1-21a9-4311-bf2c-36e25a451905"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Input Form": {
+      "main": [
+        [
+          {
+            "node": "Validate and Prepare Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate and Prepare Inputs": {
+      "main": [
+        [
+          {
+            "node": "Fetch Prospect Website",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Prospect Website": {
+      "main": [
+        [
+          {
+            "node": "Clean Website and Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Website and Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "Generate Email with Groq",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Email with Groq": {
+      "main": [
+        [
+          {
+            "node": "Format Email and Memory Note",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Email and Memory Note": {
+      "main": [
+        [
+          {
+            "node": "Output Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "7af2de26-c675-448e-ba2a-b83b2c3fc5cd",
+  "meta": {
+    "instanceId": "2dc16f2fde380b08232754a034a6113a284eb451484932d0ac409e5cd755add9"
+  },
+  "nodeGroups": [],
+  "id": "6baouNME3RaT6wtY",
+  "tags": []
+}
